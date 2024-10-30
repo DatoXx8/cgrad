@@ -16,6 +16,8 @@
 
 /* TODO: Switch to pcg_rand_below() */
 
+/* MAYBE: Make nice ncurses tui */
+
 #define RANDOM_MAX_TRIES 100ul
 const uint64_t DIM_SZE = 3;
 const double EPSILON = 1e-3;
@@ -403,7 +405,7 @@ static void simulate_compiler(tensor_t *tensor1, tensor_t *tensor2, cl_device_id
     tensor_move_offset(&tensor1[bp_out_idx[OP_NUM - 1]], 0, 0, 0, 0);
     tensor_move_offset(&tensor2[bp_out_idx[OP_NUM - 1]], 0, 0, 0, 0);
     // TENSOR_PRINT(tensor1[bp_out_idx[OP_NUM - 1]]);
-    // TENSOR_PRINT(tensor2[bp_out_idx[OP_NUM - 1]]);
+    TENSOR_PRINT(tensor2[bp_out_idx[OP_NUM - 1]]);
     double margin_of_error = pow(1 + MARGIN_OF_ERROR, OP_NUM) - 1;
     for(uint64_t a = 0; a < DIM_SZE; a++) {
         for(uint64_t z = 0; z < DIM_SZE; z++) {
@@ -445,53 +447,6 @@ static void simulate_compiler(tensor_t *tensor1, tensor_t *tensor2, cl_device_id
     program.kernel = NULL;
 }
 
-/* TODO: Refactor this to be one function and possibly avoid reallocating the buffers every time. */
-void initialize_and_simulate(const uint64_t rng) {
-    pcg_init(rng);
-
-    int32_t err;
-    cl_device_id device_id = cl_device_get();
-    cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
-    assert(!err);
-    cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, NULL, &err);
-    assert(!err);
-
-    tensor_t *tensor1 = calloc(TENSOR_NUM, sizeof(tensor_t));
-    tensor_t *tensor2 = calloc(TENSOR_NUM, sizeof(tensor_t));
-    assert(tensor1);
-    assert(tensor2);
-    for(uint64_t tensor_idx = 0; tensor_idx < TENSOR_NUM; tensor_idx++) {
-        const uint64_t a_size = DIM_SZE + pcg_rand() % 3;
-        const uint64_t z_size = DIM_SZE + pcg_rand() % 3;
-        const uint64_t y_size = DIM_SZE + pcg_rand() % 3;
-        const uint64_t x_size = DIM_SZE + pcg_rand() % 3;
-        /* TODO: Make random offsets */
-        tensor1[tensor_idx] = tensor_alloc(a_size, z_size, y_size, x_size, context);
-        tensor2[tensor_idx] = tensor_alloc(a_size, z_size, y_size, x_size, context);
-        for(uint64_t val_idx = 0; val_idx < a_size * z_size * y_size * x_size; val_idx++) {
-            tensor1[tensor_idx].buffer->val[val_idx] = 2 * (double) pcg_rand() / (double) RAND_MAX - 1;
-            tensor2[tensor_idx].buffer->val[val_idx] = tensor1[tensor_idx].buffer->val[val_idx];
-            tensor1[tensor_idx].buffer->val[val_idx] = 1;
-            tensor2[tensor_idx].buffer->val[val_idx] = tensor1[tensor_idx].buffer->val[val_idx];
-        }
-        tensor_move_reshape(&tensor1[tensor_idx], DIM_SZE, DIM_SZE, DIM_SZE, DIM_SZE);
-        tensor_move_reshape(&tensor2[tensor_idx], DIM_SZE, DIM_SZE, DIM_SZE, DIM_SZE);
-    }
-
-    simulate_compiler(tensor1, tensor2, &device_id, &context, &command_queue);
-
-    for(uint64_t tensor_idx = 0; tensor_idx < TENSOR_NUM; tensor_idx++) {
-        tensor_free(&tensor1[tensor_idx]);
-        tensor_free(&tensor2[tensor_idx]);
-    }
-    clReleaseDevice(device_id);
-    clReleaseContext(context);
-    clReleaseCommandQueue(command_queue);
-    free(tensor1);
-    free(tensor2);
-    printf("Passed\n");
-}
-
 void arg_parse(const int argc, const char **argv, bool *loop, uint64_t *loop_count, uint64_t *rng) {
     assert(argc > 0);
     assert(argv);
@@ -509,6 +464,7 @@ void arg_parse(const int argc, const char **argv, bool *loop, uint64_t *loop_cou
     /* TODO: Use rng seed from /dev/random */
     *rng = time(NULL);
 
+    /* The beauty of parsing arguments in c */
     for(int64_t arg_idx = 1; arg_idx < argc; arg_idx++) {
         if(!strcmp(argv[arg_idx], "--rng")) {
             context_rng = true;
@@ -567,31 +523,96 @@ void arg_parse(const int argc, const char **argv, bool *loop, uint64_t *loop_cou
     }
 }
 
+void init_tensors(tensor_t *tensor1, tensor_t *tensor2, cl_context context) {
+    for(uint64_t tensor_idx = 0; tensor_idx < TENSOR_NUM; tensor_idx++) {
+        const uint64_t a_size = DIM_SZE + pcg_rand() % 3;
+        const uint64_t z_size = DIM_SZE + pcg_rand() % 3;
+        const uint64_t y_size = DIM_SZE + pcg_rand() % 3;
+        const uint64_t x_size = DIM_SZE + pcg_rand() % 3;
+
+        /* TODO: Make random offsets */
+        tensor1[tensor_idx] = tensor_alloc(a_size, z_size, y_size, x_size, context);
+        tensor2[tensor_idx] = tensor_alloc(a_size, z_size, y_size, x_size, context);
+        for(uint64_t val_idx = 0; val_idx < a_size * z_size * y_size * x_size; val_idx++) {
+            tensor1[tensor_idx].buffer->val[val_idx] = 2 * (double) pcg_rand() / (double) RAND_MAX - 1;
+            tensor2[tensor_idx].buffer->val[val_idx] = tensor1[tensor_idx].buffer->val[val_idx];
+            // tensor1[tensor_idx].buffer->val[val_idx] = 1;
+            // tensor2[tensor_idx].buffer->val[val_idx] = tensor1[tensor_idx].buffer->val[val_idx];
+        }
+
+        tensor_move_reshape(&tensor1[tensor_idx], DIM_SZE, DIM_SZE, DIM_SZE, DIM_SZE);
+        tensor_move_reshape(&tensor2[tensor_idx], DIM_SZE, DIM_SZE, DIM_SZE, DIM_SZE);
+    }
+}
+void free_tensors(tensor_t *tensor1, tensor_t *tensor2) {
+    for(uint64_t tensor_idx = 0; tensor_idx < TENSOR_NUM; tensor_idx++) {
+        tensor_free(&tensor1[tensor_idx]);
+        tensor_free(&tensor2[tensor_idx]);
+    }
+}
+
 int main(int argc, char **argv) {
     uint64_t rng;
     uint64_t loop_count; /* Is 0 in case of infinite loop */
     bool loop;
     arg_parse(argc, (const char **) argv, &loop, &loop_count, &rng);
 
+    int32_t err;
+    cl_device_id device_id = cl_device_get();
+    cl_context context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
+    assert(!err);
+    cl_command_queue command_queue = clCreateCommandQueueWithProperties(context, device_id, NULL, &err);
+    assert(!err);
+
+    tensor_t *tensor1 = calloc(TENSOR_NUM, sizeof(tensor_t));
+    tensor_t *tensor2 = calloc(TENSOR_NUM, sizeof(tensor_t));
+    assert(tensor1);
+    assert(tensor2);
+
+    /* I don't really want to have to init and free the tensors on each iteration of a loop, but I don't think it can be
+     * avoided if I want to keep the behaviour of the loops and single calls identical while also having random sizes.
+     */
     if(loop) {
         if(loop_count) {
             for(uint64_t loop_idx = 0; loop_idx < loop_count; loop_idx++) {
+                pcg_init(rng);
                 printf("Simulate compiler with rng: %lu at iteration %lu\n", rng, loop_idx + 1);
-                initialize_and_simulate(rng);
+
+                init_tensors(tensor1, tensor2, context);
+                simulate_compiler(tensor1, tensor2, &device_id, &context, &command_queue);
+                free_tensors(tensor1, tensor2);
+
                 rng++;
             }
         } else {
             uint64_t iteration = 1;
             while(true) {
+                pcg_init(rng);
                 printf("Simulate compiler with rng: %lu at iteration %lu\n", rng, iteration);
-                initialize_and_simulate(rng);
+
+                init_tensors(tensor1, tensor2, context);
+                simulate_compiler(tensor1, tensor2, &device_id, &context, &command_queue);
+                free_tensors(tensor1, tensor2);
+
                 rng++;
                 iteration++;
             }
         }
     } else {
+        pcg_init(rng);
         printf("Simulate compiler with rng: %lu\n", rng);
-        initialize_and_simulate(rng);
+
+        init_tensors(tensor1, tensor2, context);
+        simulate_compiler(tensor1, tensor2, &device_id, &context, &command_queue);
+        free_tensors(tensor1, tensor2);
     }
+
+    printf("Passed...\n");
+    free(tensor1);
+    free(tensor2);
+
+    clReleaseDevice(device_id);
+    clReleaseContext(context);
+    clReleaseCommandQueue(command_queue);
     return 0;
 }
