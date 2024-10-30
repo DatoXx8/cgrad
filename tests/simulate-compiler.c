@@ -1,6 +1,7 @@
 #include <CL/cl.h>
 #include <assert.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -444,21 +445,8 @@ static void simulate_compiler(tensor_t *tensor1, tensor_t *tensor2, cl_device_id
     program.kernel = NULL;
 }
 
-int main(int argc, char **argv) {
-    assert(argc == 1 || argc == 3); /* 0 or 2 args but since argv[0] is the program name this is 1 and 3 */
-    uint64_t rng;
-    /* TODO: Do a --loop options that loops this test while reseeding every time and increasing the seed by 1. */
-    if(argc == 1) {
-        /* TODO: Use rng seed from /dev/random */
-        rng = time(NULL);
-        printf("Compiler simulation with random %lu...\n", rng);
-    } else {
-        if(strncmp(argv[1], "--rng", 5) != 0) {
-            ERROR("Expected second argument to be `--rng` but got `%s`\n", argv[1]);
-        }
-        rng = strtoull(argv[2], NULL, 10);
-        printf("Compiler simulation with provided %lu...\n", rng);
-    }
+/* TODO: Refactor this to be one function and possibly avoid reallocating the buffers every time. */
+void initialize_and_simulate(const uint64_t rng) {
     pcg_init(rng);
 
     int32_t err;
@@ -502,5 +490,108 @@ int main(int argc, char **argv) {
     free(tensor1);
     free(tensor2);
     printf("Passed\n");
+}
+
+void arg_parse(const int argc, const char **argv, bool *loop, uint64_t *loop_count, uint64_t *rng) {
+    assert(argc > 0);
+    assert(argv);
+    assert(loop);
+    assert(loop_count);
+    assert(rng);
+
+    bool context_rng = false;
+    bool context_loop = false;
+    bool wrote_rng = false;
+    bool wrote_loop = false;
+
+    *loop = false;
+    *loop_count = 0;
+    /* TODO: Use rng seed from /dev/random */
+    *rng = time(NULL);
+
+    for(int64_t arg_idx = 1; arg_idx < argc; arg_idx++) {
+        if(!strcmp(argv[arg_idx], "--rng")) {
+            context_rng = true;
+            context_loop = false;
+        } else if(!strcmp(argv[arg_idx], "--loop")) {
+            if(context_rng) {
+                printf("USAGE: %s\n"
+                       "--rng <number>      Provides a starting seed for the pseudo random number generator. The "
+                       "number is required if you use --rng.\n"
+                       "--loop [number]     Loop [number] of times. If the number if 0 or not provided then it loops "
+                       "infinitely.\n",
+                       argv[0]);
+                ERROR("No rng seed provided after --rng!\n");
+            }
+
+            *loop = true;
+
+            context_rng = false;
+            context_loop = true;
+        } else {
+            if(!(context_loop || context_rng)) {
+                printf("USAGE: %s\n"
+                       "--rng <number>      Provides a starting seed for the pseudo random number generator. The "
+                       "number is required if you use --rng.\n"
+                       "--loop [number]     Loop [number] of times. If the number if 0 or not provided then it loops "
+                       "infinitely.\n",
+                       argv[0]);
+                ERROR("Unexpected number without --rng or --loop to the left!\n");
+            }
+            if(context_rng) {
+                if(wrote_rng) {
+                    ERROR("Can only set RNG seed once.\n");
+                }
+                *rng = strtoull(argv[arg_idx], NULL, 10);
+                wrote_rng = true;
+            }
+            if(context_loop) {
+                if(wrote_loop) {
+                    ERROR("Can only set loop once.\n");
+                }
+                *loop_count = strtoull(argv[arg_idx], NULL, 10);
+                wrote_loop = true;
+            }
+            context_rng = false;
+            context_loop = false;
+        }
+    }
+    if(context_rng && !wrote_rng) {
+        printf("USAGE: %s\n"
+               "--rng <number>      Provides a starting seed for the pseudo random number generator. The "
+               "number is required if you use --rng.\n"
+               "--loop [number]     Loop [number] of times. If the number if 0 or not provided then it loops "
+               "infinitely.\n",
+               argv[0]);
+        ERROR("No rng seed provided after --rng!\n");
+    }
+}
+
+int main(int argc, char **argv) {
+    uint64_t rng;
+    uint64_t loop_count; /* Is 0 in case of infinite loop */
+    bool loop;
+    arg_parse(argc, (const char **) argv, &loop, &loop_count, &rng);
+
+    if(loop) {
+        if(loop_count) {
+            for(uint64_t loop_idx = 0; loop_idx < loop_count; loop_idx++) {
+                printf("Simulate compiler with rng: %lu at iteration %lu\n", rng, loop_idx + 1);
+                initialize_and_simulate(rng);
+                rng++;
+            }
+        } else {
+            uint64_t iteration = 1;
+            while(true) {
+                printf("Simulate compiler with rng: %lu at iteration %lu\n", rng, iteration);
+                initialize_and_simulate(rng);
+                rng++;
+                iteration++;
+            }
+        }
+    } else {
+        printf("Simulate compiler with rng: %lu\n", rng);
+        initialize_and_simulate(rng);
+    }
     return 0;
 }
