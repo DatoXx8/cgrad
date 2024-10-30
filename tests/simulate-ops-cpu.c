@@ -7,21 +7,22 @@
 #include <time.h>
 
 #include "../tensor.h"
+#include "../prng/pcg.h"
 
 const uint64_t DIM_SZE = 10;
 const double MARGIN_OF_ERROR = 1e-5;
 int main(void) {
-    const uint32_t seed = time(NULL);
-    printf("Unit tests with %u...\n", seed);
-    srand(seed);
+    const uint64_t seed = time(NULL);
+    printf("Unit tests with rng: %lu\n", seed);
+    pcg_init(seed);
 
     double *data_in = calloc(DIM_SZE * DIM_SZE * DIM_SZE * DIM_SZE, sizeof(double));
     for(uint64_t element_idx = 0; element_idx < DIM_SZE * DIM_SZE * DIM_SZE * DIM_SZE; element_idx++) {
-        data_in[element_idx] = ((double) rand() / RAND_MAX) * 2 - 1;
+        data_in[element_idx] = ((double) pcg_rand() / RAND_MAX) * 2 - 1;
     }
     double *data_out = calloc(DIM_SZE * DIM_SZE * DIM_SZE * DIM_SZE, sizeof(double));
     for(uint64_t element_idx = 0; element_idx < DIM_SZE * DIM_SZE * DIM_SZE * DIM_SZE; element_idx++) {
-        data_out[element_idx] = ((double) rand() / RAND_MAX) * 2 - 1;
+        data_out[element_idx] = ((double) pcg_rand() / RAND_MAX) * 2 - 1;
     }
 
     tensor_t in = tensor_alloc(DIM_SZE, DIM_SZE, DIM_SZE, DIM_SZE, NULL);

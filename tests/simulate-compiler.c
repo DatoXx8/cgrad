@@ -405,7 +405,7 @@ static void simulate_compiler(tensor_t *tensor1, tensor_t *tensor2, cl_device_id
     tensor_move_offset(&tensor1[bp_out_idx[OP_NUM - 1]], 0, 0, 0, 0);
     tensor_move_offset(&tensor2[bp_out_idx[OP_NUM - 1]], 0, 0, 0, 0);
     // TENSOR_PRINT(tensor1[bp_out_idx[OP_NUM - 1]]);
-    TENSOR_PRINT(tensor2[bp_out_idx[OP_NUM - 1]]);
+    // TENSOR_PRINT(tensor2[bp_out_idx[OP_NUM - 1]]);
     double margin_of_error = pow(1 + MARGIN_OF_ERROR, OP_NUM) - 1;
     for(uint64_t a = 0; a < DIM_SZE; a++) {
         for(uint64_t z = 0; z < DIM_SZE; z++) {
@@ -571,7 +571,9 @@ int main(int argc, char **argv) {
 
     /* I don't really want to have to init and free the tensors on each iteration of a loop, but I don't think it can be
      * avoided if I want to keep the behaviour of the loops and single calls identical while also having random sizes.
-     */
+     * The only difference is the names of the tensors, but that shouldn't really matter. */
+    /* MAYBE: Reset the names after each loop. IMO this is so unimportant that it's not worth cluttering a file with
+     * that. */
     if(loop) {
         if(loop_count) {
             for(uint64_t loop_idx = 0; loop_idx < loop_count; loop_idx++) {
@@ -607,7 +609,7 @@ int main(int argc, char **argv) {
         free_tensors(tensor1, tensor2);
     }
 
-    printf("Passed...\n");
+    printf("Passed\n");
     free(tensor1);
     free(tensor2);
 

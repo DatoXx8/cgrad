@@ -7,6 +7,7 @@
 
 #include "../tensor.h"
 #include "../utils.h"
+#include "../prng/pcg.h"
 
 const uint64_t DIM_SZE = 3;
 const double EPSILON = 1e-3;
@@ -17,7 +18,7 @@ static void simulate_tree(tensor_t *tensor1, tensor_t *tensor2, uint64_t op_num,
     assert(op_num > 0);
     assert(tensor_num > 1);
 
-    uint64_t tensor_out = rand() % tensor_num, tensor_in;
+    uint64_t tensor_out = pcg_rand() % tensor_num, tensor_in;
     uint64_t a_off, z_off, y_off, x_off;
     uint64_t a_sze, z_sze, y_sze, x_sze;
     op_e type;
@@ -25,24 +26,24 @@ static void simulate_tree(tensor_t *tensor1, tensor_t *tensor2, uint64_t op_num,
     binary_e type_binary;
     reduce_e type_reduce;
     for(uint64_t op_idx = 0; op_idx < op_num; op_idx++) {
-        type = rand() % 3;
+        type = pcg_rand() % 3;
         /* TODO: Randomise in and out tensors */
         switch(type) {
             case op_unary: {
-                type_unary = rand() % 16;
-                a_sze = rand() % DIM_SZE + 1;
-                z_sze = rand() % DIM_SZE + 1;
-                y_sze = rand() % DIM_SZE + 1;
-                x_sze = rand() % DIM_SZE + 1;
-                a_off = DIM_SZE == a_sze ? 0 : rand() % (DIM_SZE - a_sze);
-                z_off = DIM_SZE == z_sze ? 0 : rand() % (DIM_SZE - z_sze);
-                y_off = DIM_SZE == y_sze ? 0 : rand() % (DIM_SZE - y_sze);
-                x_off = DIM_SZE == x_sze ? 0 : rand() % (DIM_SZE - x_sze);
+                type_unary = pcg_rand() % 16;
+                a_sze = pcg_rand() % DIM_SZE + 1;
+                z_sze = pcg_rand() % DIM_SZE + 1;
+                y_sze = pcg_rand() % DIM_SZE + 1;
+                x_sze = pcg_rand() % DIM_SZE + 1;
+                a_off = DIM_SZE == a_sze ? 0 : pcg_rand() % (DIM_SZE - a_sze);
+                z_off = DIM_SZE == z_sze ? 0 : pcg_rand() % (DIM_SZE - z_sze);
+                y_off = DIM_SZE == y_sze ? 0 : pcg_rand() % (DIM_SZE - y_sze);
+                x_off = DIM_SZE == x_sze ? 0 : pcg_rand() % (DIM_SZE - x_sze);
                 tensor_move_resize(&tensor1[tensor_out], a_sze, z_sze, y_sze, x_sze);
                 tensor_move_resize(&tensor2[tensor_out], a_sze, z_sze, y_sze, x_sze);
                 tensor_move_offset(&tensor1[tensor_out], a_off, z_off, y_off, x_off);
                 tensor_move_offset(&tensor2[tensor_out], a_off, z_off, y_off, x_off);
-                double random_value = ((double) rand() / RAND_MAX) * 2 - 1;
+                double random_value = ((double) pcg_rand() / RAND_MAX) * 2 - 1;
                 switch(type_unary) {
                     case unary_add: {
                         tensor_unary_add(&tensor1[tensor_out], random_value);
@@ -153,21 +154,21 @@ static void simulate_tree(tensor_t *tensor1, tensor_t *tensor2, uint64_t op_num,
             }
             case op_binary: {
                 for(uint64_t ran_try = 0; ran_try < RANDOM_MAX_TRIES; ran_try++) {
-                    tensor_in = rand() % tensor_num;
+                    tensor_in = pcg_rand() % tensor_num;
                     if(tensor_out != tensor_in) {
                         break;
                     }
                 }
                 assert(tensor_in != tensor_out);
-                type_binary = rand() % 14;
-                a_sze = rand() % DIM_SZE + 1;
-                z_sze = rand() % DIM_SZE + 1;
-                y_sze = rand() % DIM_SZE + 1;
-                x_sze = rand() % DIM_SZE + 1;
-                a_off = DIM_SZE == a_sze ? 0 : rand() % (DIM_SZE - a_sze);
-                z_off = DIM_SZE == z_sze ? 0 : rand() % (DIM_SZE - z_sze);
-                y_off = DIM_SZE == y_sze ? 0 : rand() % (DIM_SZE - y_sze);
-                x_off = DIM_SZE == x_sze ? 0 : rand() % (DIM_SZE - x_sze);
+                type_binary = pcg_rand() % 14;
+                a_sze = pcg_rand() % DIM_SZE + 1;
+                z_sze = pcg_rand() % DIM_SZE + 1;
+                y_sze = pcg_rand() % DIM_SZE + 1;
+                x_sze = pcg_rand() % DIM_SZE + 1;
+                a_off = DIM_SZE == a_sze ? 0 : pcg_rand() % (DIM_SZE - a_sze);
+                z_off = DIM_SZE == z_sze ? 0 : pcg_rand() % (DIM_SZE - z_sze);
+                y_off = DIM_SZE == y_sze ? 0 : pcg_rand() % (DIM_SZE - y_sze);
+                x_off = DIM_SZE == x_sze ? 0 : pcg_rand() % (DIM_SZE - x_sze);
                 tensor_move_resize(&tensor1[tensor_out], a_sze, z_sze, y_sze, x_sze);
                 tensor_move_resize(&tensor2[tensor_out], a_sze, z_sze, y_sze, x_sze);
                 tensor_move_offset(&tensor1[tensor_out], a_off, z_off, y_off, x_off);
@@ -178,10 +179,10 @@ static void simulate_tree(tensor_t *tensor1, tensor_t *tensor2, uint64_t op_num,
                     y_sze = 1;
                     x_sze = 1;
                 }
-                a_off = DIM_SZE == a_sze ? 0 : rand() % (DIM_SZE - a_sze);
-                z_off = DIM_SZE == z_sze ? 0 : rand() % (DIM_SZE - z_sze);
-                y_off = DIM_SZE == y_sze ? 0 : rand() % (DIM_SZE - y_sze);
-                x_off = DIM_SZE == x_sze ? 0 : rand() % (DIM_SZE - x_sze);
+                a_off = DIM_SZE == a_sze ? 0 : pcg_rand() % (DIM_SZE - a_sze);
+                z_off = DIM_SZE == z_sze ? 0 : pcg_rand() % (DIM_SZE - z_sze);
+                y_off = DIM_SZE == y_sze ? 0 : pcg_rand() % (DIM_SZE - y_sze);
+                x_off = DIM_SZE == x_sze ? 0 : pcg_rand() % (DIM_SZE - x_sze);
                 tensor_move_resize(&tensor1[tensor_in], a_sze, z_sze, y_sze, x_sze);
                 tensor_move_resize(&tensor2[tensor_in], a_sze, z_sze, y_sze, x_sze);
                 tensor_move_offset(&tensor1[tensor_in], a_off, z_off, y_off, x_off);
@@ -288,29 +289,29 @@ static void simulate_tree(tensor_t *tensor1, tensor_t *tensor2, uint64_t op_num,
             }
             case op_reduce: {
                 for(uint64_t ran_try = 0; ran_try < RANDOM_MAX_TRIES; ran_try++) {
-                    tensor_in = rand() % tensor_num;
+                    tensor_in = pcg_rand() % tensor_num;
                     if(tensor_out != tensor_in) {
                         break;
                     }
                 }
                 assert(tensor_in != tensor_out);
-                type_reduce = rand() % 4;
-                a_off = rand() % DIM_SZE;
-                z_off = rand() % DIM_SZE;
-                y_off = rand() % DIM_SZE;
-                x_off = rand() % DIM_SZE;
+                type_reduce = pcg_rand() % 4;
+                a_off = pcg_rand() % DIM_SZE;
+                z_off = pcg_rand() % DIM_SZE;
+                y_off = pcg_rand() % DIM_SZE;
+                x_off = pcg_rand() % DIM_SZE;
                 tensor_move_resize(&tensor1[tensor_out], 1, 1, 1, 1);
                 tensor_move_resize(&tensor2[tensor_out], 1, 1, 1, 1);
                 tensor_move_offset(&tensor1[tensor_out], a_off, z_off, y_off, x_off);
                 tensor_move_offset(&tensor2[tensor_out], a_off, z_off, y_off, x_off);
-                a_sze = rand() % DIM_SZE + 1;
-                z_sze = rand() % DIM_SZE + 1;
-                y_sze = rand() % DIM_SZE + 1;
-                x_sze = rand() % DIM_SZE + 1;
-                a_off = DIM_SZE == a_sze ? 0 : rand() % (DIM_SZE - a_sze);
-                z_off = DIM_SZE == z_sze ? 0 : rand() % (DIM_SZE - z_sze);
-                y_off = DIM_SZE == y_sze ? 0 : rand() % (DIM_SZE - y_sze);
-                x_off = DIM_SZE == x_sze ? 0 : rand() % (DIM_SZE - x_sze);
+                a_sze = pcg_rand() % DIM_SZE + 1;
+                z_sze = pcg_rand() % DIM_SZE + 1;
+                y_sze = pcg_rand() % DIM_SZE + 1;
+                x_sze = pcg_rand() % DIM_SZE + 1;
+                a_off = DIM_SZE == a_sze ? 0 : pcg_rand() % (DIM_SZE - a_sze);
+                z_off = DIM_SZE == z_sze ? 0 : pcg_rand() % (DIM_SZE - z_sze);
+                y_off = DIM_SZE == y_sze ? 0 : pcg_rand() % (DIM_SZE - y_sze);
+                x_off = DIM_SZE == x_sze ? 0 : pcg_rand() % (DIM_SZE - x_sze);
                 tensor_move_resize(&tensor1[tensor_in], a_sze, z_sze, y_sze, x_sze);
                 tensor_move_resize(&tensor2[tensor_in], a_sze, z_sze, y_sze, x_sze);
                 tensor_move_offset(&tensor1[tensor_in], a_off, z_off, y_off, x_off);
@@ -365,9 +366,9 @@ int main(int argc, char **argv) {
         printf("USAGE: %s [ops] [tensors]\n", argv[0]);
         return 1;
     }
-    const uint32_t seed = time(NULL);
-    printf("Linear simulation with %u...\n", seed);
-    srand(seed);
+    const uint64_t seed = time(NULL);
+    printf("Linear simulation with rng: %lu\n", seed);
+    pcg_init(seed);
     const uint64_t op_num = strtoll(argv[1], NULL, 10);
     const uint64_t tensor_num = strtoll(argv[2], NULL, 10);
     assert(op_num > 0);
@@ -376,7 +377,7 @@ int main(int argc, char **argv) {
     double *random_values = calloc(DIM_SZE * DIM_SZE * DIM_SZE * DIM_SZE, sizeof(double));
     assert(random_values);
     for(uint64_t val_idx = 0; val_idx < DIM_SZE * DIM_SZE * DIM_SZE * DIM_SZE; val_idx++) {
-        // random_values[val_idx] = ((double) rand() / RAND_MAX) * 2 - 1;
+        // random_values[val_idx] = ((double) pcg_rand() / RAND_MAX) * 2 - 1;
         random_values[val_idx] = 1;
     }
     tensor_t *tensor1 = calloc(tensor_num, sizeof(tensor_t));
