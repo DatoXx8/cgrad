@@ -3,8 +3,8 @@
 Grads is a deep learning framework written in C. It is mainly a recreational project, though you can use it if you like.
 It is essentialy an optimizing transpiler to OpenCL.
 
-## WARNING:
- gn the future this will probably be ported to Zig and the C version will likely be abandoned at that point.
+> [!IMPORTANT]  
+> In the future this will probably be ported to Zig and the C version will likely be abandoned at that point.
 
 ## Dependencies
 
