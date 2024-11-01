@@ -15,6 +15,7 @@
 #include "../utils.h"
 
 /* TODO: Switch to pcg_rand_below() */
+/* TODO: Minifier */
 
 /* MAYBE: Make nice ncurses tui */
 
@@ -178,6 +179,18 @@ static void simulate_compiler(tensor_t *tensor1, tensor_t *tensor2, cl_device_id
                                         break;
                                     }
                                     case unary_log: {
+                                        /* Nan Prevention */
+                                        /* This one is also interesting because it there was a simulator failure where
+                                         * the difference between -0.00000000000000177... on the CPU and 0 on the GPU
+                                         * caused -nan and -inf respectively. The addition of 1 is necessary because
+                                         * otherwise even the tiniest of deviations caused by hardware differences can
+                                         * cause an error if the value is close to 0, because the log function changes
+                                         * values so quickly at that range. */
+                                        tensor_unary_absolute(&tensor1[bp_out_idx[op_idx]]);
+                                        tensor_unary_absolute(&tensor2[bp_out_idx[op_idx]]);
+                                        tensor_unary_add(&tensor1[bp_out_idx[op_idx]], 1);
+                                        tensor_unary_add(&tensor2[bp_out_idx[op_idx]], 1);
+
                                         tensor_unary_log(&tensor1[bp_out_idx[op_idx]]);
                                         tensor_unary_log(&tensor2[bp_out_idx[op_idx]]);
                                         break;
@@ -382,13 +395,17 @@ static void simulate_compiler(tensor_t *tensor1, tensor_t *tensor2, cl_device_id
         }
     }
 
-    // LINEARIZED_PRINT_(tensor2[bp_out_idx[OP_NUM - 1]].linearized);
+#ifdef DEBUG
+    LINEARIZED_PRINT_(tensor2[bp_out_idx[OP_NUM - 1]].linearized);
+#endif
     linearized_run(tensor1[bp_out_idx[OP_NUM - 1]].linearized);
     program_t program =
         program_compile(tensor2[bp_out_idx[OP_NUM - 1]].linearized, device_id, context, command_queue, 9, 9);
-    // for(uint64_t kernel_idx = 0; kernel_idx < program.kernel_num; kernel_idx++) {
-    //     printf("%s\n", program.kernel[kernel_idx].source);
-    // }
+#ifdef DEBUG
+    for(uint64_t kernel_idx = 0; kernel_idx < program.kernel_num; kernel_idx++) {
+        printf("%s\n", program.kernel[kernel_idx].source);
+    }
+#endif
     for(uint64_t tensor_idx = 0; tensor_idx < TENSOR_NUM; tensor_idx++) {
         buffer_sync_update(tensor2[tensor_idx].buffer, sync_to_device);
         buffer_sync_realize(tensor2[tensor_idx].buffer, *command_queue);
@@ -404,14 +421,15 @@ static void simulate_compiler(tensor_t *tensor1, tensor_t *tensor2, cl_device_id
     tensor_move_resize(&tensor2[bp_out_idx[OP_NUM - 1]], DIM_SZE, DIM_SZE, DIM_SZE, DIM_SZE);
     tensor_move_offset(&tensor1[bp_out_idx[OP_NUM - 1]], 0, 0, 0, 0);
     tensor_move_offset(&tensor2[bp_out_idx[OP_NUM - 1]], 0, 0, 0, 0);
-    // TENSOR_PRINT(tensor1[bp_out_idx[OP_NUM - 1]]);
-    // TENSOR_PRINT(tensor2[bp_out_idx[OP_NUM - 1]]);
+#ifdef DEBUG
+    TENSOR_PRINT(tensor1[bp_out_idx[OP_NUM - 1]]);
+    TENSOR_PRINT(tensor2[bp_out_idx[OP_NUM - 1]]);
+#endif
     double margin_of_error = pow(1 + MARGIN_OF_ERROR, OP_NUM) - 1;
     for(uint64_t a = 0; a < DIM_SZE; a++) {
         for(uint64_t z = 0; z < DIM_SZE; z++) {
             for(uint64_t y = 0; y < DIM_SZE; y++) {
                 for(uint64_t x = 0; x < DIM_SZE; x++) {
-                    /* Both isnan and isinf should be xnor I guess */
                     assert(isnan(BUFFER_AT_(tensor1[bp_out_idx[OP_NUM - 1]].buffer, a, z, y, x)) ==
                            isnan(BUFFER_AT_(tensor2[bp_out_idx[OP_NUM - 1]].buffer, a, z, y, x)));
                     assert(isinf(BUFFER_AT_(tensor1[bp_out_idx[OP_NUM - 1]].buffer, a, z, y, x)) ==
@@ -447,7 +465,7 @@ static void simulate_compiler(tensor_t *tensor1, tensor_t *tensor2, cl_device_id
     program.kernel = NULL;
 }
 
-void arg_parse(const int argc, const char **argv, bool *loop, uint64_t *loop_count, uint64_t *rng) {
+static void arg_parse(const int argc, const char **argv, bool *loop, uint64_t *loop_count, uint64_t *rng) {
     assert(argc > 0);
     assert(argv);
     assert(loop);
@@ -523,7 +541,7 @@ void arg_parse(const int argc, const char **argv, bool *loop, uint64_t *loop_cou
     }
 }
 
-void init_tensors(tensor_t *tensor1, tensor_t *tensor2, cl_context context) {
+static void init_tensors(tensor_t *tensor1, tensor_t *tensor2, cl_context context) {
     for(uint64_t tensor_idx = 0; tensor_idx < TENSOR_NUM; tensor_idx++) {
         const uint64_t a_size = DIM_SZE + pcg_rand() % 3;
         const uint64_t z_size = DIM_SZE + pcg_rand() % 3;
@@ -544,7 +562,7 @@ void init_tensors(tensor_t *tensor1, tensor_t *tensor2, cl_context context) {
         tensor_move_reshape(&tensor2[tensor_idx], DIM_SZE, DIM_SZE, DIM_SZE, DIM_SZE);
     }
 }
-void free_tensors(tensor_t *tensor1, tensor_t *tensor2) {
+static void free_tensors(tensor_t *tensor1, tensor_t *tensor2) {
     for(uint64_t tensor_idx = 0; tensor_idx < TENSOR_NUM; tensor_idx++) {
         tensor_free(&tensor1[tensor_idx]);
         tensor_free(&tensor2[tensor_idx]);
